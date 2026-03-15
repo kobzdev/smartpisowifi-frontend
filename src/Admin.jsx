@@ -164,7 +164,13 @@ function AdminPanel({ token, onLogout }) {
 
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
-  useEffect(() => { fetchVouchers(); fetchSessions(); fetchEarnings(); }, []);
+ useEffect(() => { fetchVouchers(); fetchSessions(); fetchEarnings(); }, []);
+
+useEffect(() => {
+  if (tab === "sessions") fetchSessions();
+  if (tab === "vouchers") fetchVouchers();
+  if (tab === "earnings") fetchEarnings();
+}, [tab]);
 
   async function fetchVouchers() {
     try {
