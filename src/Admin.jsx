@@ -1,8 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-// ⚠️ Demo credentials — move to backend in production
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "pisoWiFi2026";
+const API_URL = process.env.REACT_APP_API_URL || "https://smartpisowifi-backend.onrender.com";
 
 const packages = [
   { id: 1, name: "Basic", price: 5, duration_hours: 2, label: "2 Hours", color: "#FF6B6B", bg: "#FFF0F0", icon: "⚡" },
@@ -11,25 +9,6 @@ const packages = [
   { id: 4, name: "Daily", price: 30, duration_hours: 24, label: "1 Day", color: "#5F27CD", bg: "#F0EBFF", icon: "☀️" },
   { id: 5, name: "Extended", price: 50, duration_hours: 72, label: "3 Days", color: "#00D2D3", bg: "#E6FAFA", icon: "🌟" },
 ];
-
-const mockVouchers = [
-  { id: 1, code: "WIFI-3847", package: "Basic", price: 5, is_used: false, created_at: "2026-03-15 08:00" },
-  { id: 2, code: "WIFI-2931", package: "Standard", price: 10, is_used: true, created_at: "2026-03-15 09:30" },
-  { id: 3, code: "WIFI-5512", package: "Daily", price: 30, is_used: false, created_at: "2026-03-15 10:00" },
-  { id: 4, code: "WIFI-7743", package: "Premium", price: 20, is_used: true, created_at: "2026-03-15 11:00" },
-];
-
-const mockSessions = [
-  { id: 1, code: "WIFI-2931", device: "iPhone 13", ip: "192.168.1.10", package: "Standard", expires_at: "2026-03-15 13:30" },
-  { id: 2, code: "WIFI-7743", device: "Android Phone", ip: "192.168.1.11", package: "Premium", expires_at: "2026-03-15 21:00" },
-];
-
-function generateCode() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "WIFI-";
-  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
-}
 
 // ─────────────────────────────────────────────
 // LOGIN PAGE
@@ -40,21 +19,36 @@ function LoginPage({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState(null);
   const [attempts, setAttempts] = useState(0);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const isLocked = attempts >= 3;
 
   async function handleLogin() {
     if (!username.trim() || !password.trim() || isLocked || status === "loading") return;
     setStatus("loading");
-    await new Promise(r => setTimeout(r, 1200));
 
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-      setStatus("success");
-      setTimeout(() => onLogin(), 700);
-    } else {
-      const next = attempts + 1;
-      setAttempts(next);
-      setStatus(next >= 3 ? "locked" : "error");
+    try {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const next = attempts + 1;
+        setAttempts(next);
+        setStatus(next >= 3 ? "locked" : "error");
+        setErrorMsg(data.error || "Invalid credentials");
+      } else {
+        localStorage.setItem("admin_token", data.token);
+        setStatus("success");
+        setTimeout(() => onLogin(data.token), 700);
+      }
+    } catch (err) {
+      setStatus("error");
+      setErrorMsg("Cannot connect to server. Please try again.");
     }
   }
 
@@ -81,38 +75,29 @@ function LoginPage({ onLogin }) {
         .dot-indicator { width:10px; height:10px; border-radius:50%; transition: all 0.3s; }
       `}</style>
 
-      {/* Glow blobs */}
       <div style={{ position:"absolute", width:500, height:500, borderRadius:"50%", background:"radial-gradient(circle, rgba(102,126,234,0.12) 0%, transparent 65%)", top:-150, left:-150, pointerEvents:"none" }} />
       <div style={{ position:"absolute", width:400, height:400, borderRadius:"50%", background:"radial-gradient(circle, rgba(167,139,250,0.08) 0%, transparent 65%)", bottom:-100, right:-100, pointerEvents:"none" }} />
 
-      {/* Floating particles */}
       {[...Array(5)].map((_, i) => (
         <div key={i} style={{ position:"absolute", width:[4,6,3,5,4][i], height:[4,6,3,5,4][i], borderRadius:"50%", background:["#667eea","#a78bfa","#00D2D3","#FF6B6B","#FF9F43"][i], opacity:0.3, top:`${[20,70,40,85,15][i]}%`, left:`${[15,80,90,10,75][i]}%`, animation:`float ${3+i*0.5}s ease-in-out infinite`, animationDelay:`${i*0.6}s` }} />
       ))}
 
       <div className="fadeUp" style={{ width:"100%", maxWidth:400, position:"relative", zIndex:1 }}>
-        {/* Header */}
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ fontSize:52, marginBottom:10, animation:"float 3s ease-in-out infinite", display:"inline-block" }}>🔐</div>
           <div className="shimmer-text" style={{ fontSize:26, fontWeight:900, letterSpacing:-0.5 }}>Admin Access</div>
           <div style={{ color:"#4A5568", fontSize:13, fontWeight:600, marginTop:6 }}>📡 SmartPisoWiFi Control Panel</div>
         </div>
 
-        {/* Card */}
         <div style={{ background:"rgba(255,255,255,0.04)", backdropFilter:"blur(24px)", border:`1.5px solid ${isLocked ? "rgba(255,107,107,0.3)" : "rgba(255,255,255,0.08)"}`, borderRadius:24, padding:"28px 24px" }}>
-
           {isLocked ? (
             <div style={{ textAlign:"center", padding:"20px 0" }}>
               <div className="lock-pulse" style={{ fontSize:48, marginBottom:16 }}>🔒</div>
               <div style={{ color:"#FF6B6B", fontWeight:900, fontSize:18, marginBottom:8 }}>Account Locked</div>
               <div style={{ color:"#718096", fontSize:13, lineHeight:1.6 }}>Too many failed attempts.<br/>Please contact system support.</div>
-              <div style={{ marginTop:20, background:"rgba(255,107,107,0.08)", border:"1px solid rgba(255,107,107,0.2)", borderRadius:12, padding:"12px 16px", color:"#FF6B6B", fontSize:12, fontWeight:600 }}>
-                🛡️ Security lockout after 3 failed attempts
-              </div>
             </div>
           ) : (
             <>
-              {/* Username */}
               <div style={{ marginBottom:16 }}>
                 <label style={{ color:"#A0AEC0", fontSize:12, fontWeight:700, letterSpacing:0.5, display:"block", marginBottom:8 }}>USERNAME</label>
                 <div style={{ position:"relative" }}>
@@ -122,7 +107,6 @@ function LoginPage({ onLogin }) {
                 </div>
               </div>
 
-              {/* Password */}
               <div style={{ marginBottom:20 }}>
                 <label style={{ color:"#A0AEC0", fontSize:12, fontWeight:700, letterSpacing:0.5, display:"block", marginBottom:8 }}>PASSWORD</label>
                 <div style={{ position:"relative" }}>
@@ -135,21 +119,18 @@ function LoginPage({ onLogin }) {
                 </div>
               </div>
 
-              {/* Error */}
               {status === "error" && (
                 <div style={{ background:"rgba(255,107,107,0.08)", border:"1px solid rgba(255,107,107,0.25)", borderRadius:12, padding:"11px 14px", marginBottom:16, color:"#FF6B6B", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:8 }}>
-                  ❌ Incorrect username or password
+                  ❌ {errorMsg}
                   <span style={{ marginLeft:"auto", fontSize:12, opacity:0.7 }}>{3 - attempts} left</span>
                 </div>
               )}
 
-              {/* Button */}
               <button className="login-btn" onClick={handleLogin} disabled={!username.trim() || !password.trim() || status==="loading"}
                 style={{ width:"100%", padding:"15px", background: username && password ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(255,255,255,0.05)", border:"none", borderRadius:14, cursor: username && password ? "pointer" : "not-allowed", color: username && password ? "white" : "#4A5568", fontFamily:"'Nunito',sans-serif", fontWeight:900, fontSize:16, boxShadow: username && password ? "0 8px 24px rgba(102,126,234,0.35)" : "none", display:"flex", alignItems:"center", justifyContent:"center", gap:10, marginBottom:20 }}>
                 {status === "loading" ? <><div className="loader" /> Verifying...</> : status === "success" ? <>✅ Access Granted!</> : <>🔓 Login to Admin Panel</>}
               </button>
 
-              {/* Attempt dots */}
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}>
                 <span style={{ color:"#4A5568", fontSize:11, fontWeight:600 }}>Failed attempts:</span>
                 <div style={{ display:"flex", gap:6 }}>
@@ -161,10 +142,7 @@ function LoginPage({ onLogin }) {
             </>
           )}
         </div>
-
-        <div style={{ textAlign:"center", marginTop:20, color:"#2D3748", fontSize:12, fontWeight:600 }}>
-          🛡️ This page is for authorized personnel only
-        </div>
+        <div style={{ textAlign:"center", marginTop:20, color:"#2D3748", fontSize:12, fontWeight:600 }}>🛡️ Authorized personnel only</div>
       </div>
     </div>
   );
@@ -173,25 +151,63 @@ function LoginPage({ onLogin }) {
 // ─────────────────────────────────────────────
 // ADMIN PANEL
 // ─────────────────────────────────────────────
-function AdminPanel({ onLogout }) {
+function AdminPanel({ token, onLogout }) {
   const [tab, setTab] = useState("generate");
   const [selectedPkg, setSelectedPkg] = useState(null);
   const [generatedCode, setGeneratedCode] = useState(null);
-  const [vouchers, setVouchers] = useState(mockVouchers);
+  const [vouchers, setVouchers] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [earnings, setEarnings] = useState({ total: 0, today: 0, by_package: [] });
   const [showReceipt, setShowReceipt] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const totalEarnings = vouchers.filter(v => v.is_used).reduce((sum, v) => sum + v.price, 0);
-  const usedVouchers = vouchers.filter(v => v.is_used).length;
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
-  function handleGenerate() {
-    if (!selectedPkg) return;
-    const code = generateCode();
-    const now = new Date().toLocaleString("en-PH");
-    const newVoucher = { id: vouchers.length + 1, code, package: selectedPkg.name, price: selectedPkg.price, is_used: false, created_at: now };
-    setVouchers([newVoucher, ...vouchers]);
-    setGeneratedCode({ ...newVoucher, pkg: selectedPkg, created_at: now });
-    setShowReceipt(true);
+  useEffect(() => { fetchVouchers(); fetchSessions(); fetchEarnings(); }, []);
+
+  async function fetchVouchers() {
+    try {
+      const res = await fetch(`${API_URL}/api/vouchers`, { headers });
+      const data = await res.json();
+      if (Array.isArray(data)) setVouchers(data);
+    } catch (err) { console.error("Fetch vouchers error:", err); }
+  }
+
+  async function fetchSessions() {
+    try {
+      const res = await fetch(`${API_URL}/api/sessions`, { headers });
+      const data = await res.json();
+      if (Array.isArray(data)) setSessions(data);
+    } catch (err) { console.error("Fetch sessions error:", err); }
+  }
+
+  async function fetchEarnings() {
+    try {
+      const res = await fetch(`${API_URL}/api/sessions/earnings`, { headers });
+      const data = await res.json();
+      setEarnings(data);
+    } catch (err) { console.error("Fetch earnings error:", err); }
+  }
+
+  async function handleGenerate() {
+    if (!selectedPkg || loading) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/vouchers/generate`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ package_name: selectedPkg.name, duration_hours: selectedPkg.duration_hours, price: selectedPkg.price }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGeneratedCode({ ...data.voucher, pkg: selectedPkg });
+        setShowReceipt(true);
+        fetchVouchers();
+        fetchEarnings();
+      }
+    } catch (err) { console.error("Generate error:", err); }
+    setLoading(false);
   }
 
   const tabs = [
@@ -201,6 +217,8 @@ function AdminPanel({ onLogout }) {
     { id:"earnings", label:"Earnings", icon:"💰" },
   ];
 
+  const usedVouchers = vouchers.filter(v => v.is_used).length;
+
   return (
     <div style={{ minHeight:"100vh", background:"#F7F8FC", fontFamily:"'Nunito',sans-serif" }}>
       <style>{`
@@ -209,12 +227,8 @@ function AdminPanel({ onLogout }) {
         .pkg-card { transition:all 0.2s ease; cursor:pointer; }
         .pkg-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,0.12) !important; }
         .tab-btn { transition:all 0.2s; }
-        .tab-btn:hover { opacity:0.85; }
         .voucher-row:hover { background:#F0F4FF !important; }
-        @media print {
-          .no-print { display:none !important; }
-          .print-only { display:block !important; }
-        }
+        @media print { .no-print{display:none !important;} .print-only{display:block !important;} }
         .print-only { display:none; }
       `}</style>
 
@@ -238,7 +252,7 @@ function AdminPanel({ onLogout }) {
             { label:"Total Vouchers", value:vouchers.length, color:"#54A0FF" },
             { label:"Used", value:usedVouchers, color:"#FF6B6B" },
             { label:"Available", value:vouchers.length - usedVouchers, color:"#1DD1A1" },
-            { label:"Earnings", value:`₱${totalEarnings}`, color:"#FF9F43" },
+            { label:"Earnings", value:`₱${earnings.total || 0}`, color:"#FF9F43" },
           ].map((s,i) => (
             <div key={i} style={{ textAlign:"center" }}>
               <div style={{ fontSize:20, fontWeight:900, color:s.color }}>{s.value}</div>
@@ -262,7 +276,6 @@ function AdminPanel({ onLogout }) {
       {/* Content */}
       <div className="no-print" style={{ maxWidth:700, margin:"24px auto", padding:"0 24px" }}>
 
-        {/* GENERATE */}
         {tab === "generate" && (
           <div>
             <div style={{ fontSize:18, fontWeight:800, color:"#2D3436", marginBottom:16 }}>Select a Package</div>
@@ -276,18 +289,19 @@ function AdminPanel({ onLogout }) {
                 </div>
               ))}
             </div>
-            <button onClick={handleGenerate} disabled={!selectedPkg} style={{ width:"100%", padding:"16px", borderRadius:14, border:"none", cursor: selectedPkg ? "pointer" : "not-allowed", background: selectedPkg ? "linear-gradient(135deg,#667eea,#764ba2)" : "#DDD", color:"white", fontFamily:"'Nunito',sans-serif", fontWeight:900, fontSize:16, boxShadow: selectedPkg ? "0 8px 20px rgba(102,126,234,0.4)" : "none" }}>
-              {selectedPkg ? `✦ Generate ${selectedPkg.name} Voucher — ₱${selectedPkg.price}` : "Select a package first"}
+            <button onClick={handleGenerate} disabled={!selectedPkg || loading} style={{ width:"100%", padding:"16px", borderRadius:14, border:"none", cursor: selectedPkg ? "pointer" : "not-allowed", background: selectedPkg ? "linear-gradient(135deg,#667eea,#764ba2)" : "#DDD", color:"white", fontFamily:"'Nunito',sans-serif", fontWeight:900, fontSize:16, boxShadow: selectedPkg ? "0 8px 20px rgba(102,126,234,0.4)" : "none" }}>
+              {loading ? "Generating..." : selectedPkg ? `✦ Generate ${selectedPkg.name} Voucher — ₱${selectedPkg.price}` : "Select a package first"}
             </button>
           </div>
         )}
 
-        {/* VOUCHERS */}
         {tab === "vouchers" && (
           <div>
             <div style={{ fontSize:18, fontWeight:800, color:"#2D3436", marginBottom:16 }}>All Vouchers</div>
             <div style={{ background:"white", borderRadius:16, overflow:"hidden", border:"1px solid #EAECF0" }}>
-              {vouchers.map((v,i) => {
+              {vouchers.length === 0 ? (
+                <div style={{ padding:40, textAlign:"center", color:"#AAA", fontWeight:600 }}>No vouchers yet. Generate one! 😊</div>
+              ) : vouchers.map((v,i) => {
                 const pkg = packages.find(p => p.name===v.package);
                 return (
                   <div key={v.id} className="voucher-row" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 18px", borderBottom: i<vouchers.length-1 ? "1px solid #F0F0F0" : "none", transition:"all 0.15s" }}>
@@ -295,7 +309,7 @@ function AdminPanel({ onLogout }) {
                       <div style={{ background:pkg?.bg||"#F0F0F0", color:pkg?.color||"#888", borderRadius:10, padding:"6px 10px", fontFamily:"'Space Mono',monospace", fontWeight:700, fontSize:13 }}>{v.code}</div>
                       <div>
                         <div style={{ fontWeight:700, fontSize:14, color:"#2D3436" }}>{v.package}</div>
-                        <div style={{ fontSize:11, color:"#AAA", marginTop:1 }}>{v.created_at}</div>
+                        <div style={{ fontSize:11, color:"#AAA", marginTop:1 }}>{new Date(v.created_at).toLocaleString("en-PH")}</div>
                       </div>
                     </div>
                     <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -311,23 +325,24 @@ function AdminPanel({ onLogout }) {
           </div>
         )}
 
-        {/* SESSIONS */}
         {tab === "sessions" && (
           <div>
             <div style={{ fontSize:18, fontWeight:800, color:"#2D3436", marginBottom:16 }}>
-              Active Sessions <span style={{ fontSize:14, color:"#1DD1A1", fontWeight:700 }}>● {mockSessions.length} online</span>
+              Active Sessions <span style={{ fontSize:14, color:"#1DD1A1", fontWeight:700 }}>● {sessions.length} online</span>
             </div>
-            {mockSessions.map(s => (
+            {sessions.length === 0 ? (
+              <div style={{ background:"white", borderRadius:16, padding:40, textAlign:"center", color:"#AAA", fontWeight:600 }}>No active sessions right now 😊</div>
+            ) : sessions.map(s => (
               <div key={s.id} style={{ background:"white", border:"1px solid #EAECF0", borderRadius:16, padding:"18px", marginBottom:12 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                   <div>
-                    <div style={{ fontWeight:800, fontSize:15, color:"#2D3436" }}>📱 {s.device}</div>
-                    <div style={{ fontSize:12, color:"#AAA", marginTop:4 }}>IP: {s.ip}</div>
+                    <div style={{ fontWeight:800, fontSize:15, color:"#2D3436" }}>📱 {s.mac_address || "Unknown Device"}</div>
+                    <div style={{ fontSize:12, color:"#AAA", marginTop:4 }}>IP: {s.ip_address || "N/A"}</div>
                     <div style={{ fontSize:12, color:"#AAA" }}>Code: <span style={{ fontFamily:"'Space Mono'", fontWeight:700, color:"#667eea" }}>{s.code}</span></div>
                   </div>
                   <div style={{ textAlign:"right" }}>
                     <div style={{ background:"#EFFFEF", color:"#1DD1A1", padding:"4px 12px", borderRadius:20, fontSize:12, fontWeight:700 }}>● Active</div>
-                    <div style={{ fontSize:11, color:"#AAA", marginTop:6 }}>Expires: {s.expires_at}</div>
+                    <div style={{ fontSize:11, color:"#AAA", marginTop:6 }}>Expires: {new Date(s.expires_at).toLocaleString("en-PH")}</div>
                   </div>
                 </div>
               </div>
@@ -335,18 +350,19 @@ function AdminPanel({ onLogout }) {
           </div>
         )}
 
-        {/* EARNINGS */}
         {tab === "earnings" && (
           <div>
             <div style={{ fontSize:18, fontWeight:800, color:"#2D3436", marginBottom:16 }}>Sales & Earnings</div>
             <div style={{ background:"linear-gradient(135deg,#FF9F43,#FF6B6B)", borderRadius:20, padding:"28px", color:"white", marginBottom:20, textAlign:"center" }}>
-              <div style={{ fontSize:13, fontWeight:700, opacity:0.85, marginBottom:6 }}>TOTAL EARNINGS TODAY</div>
-              <div style={{ fontSize:48, fontWeight:900 }}>₱{totalEarnings}</div>
-              <div style={{ fontSize:13, opacity:0.8, marginTop:4 }}>{usedVouchers} vouchers redeemed</div>
+              <div style={{ fontSize:13, fontWeight:700, opacity:0.85, marginBottom:6 }}>TOTAL EARNINGS</div>
+              <div style={{ fontSize:48, fontWeight:900 }}>₱{earnings.total || 0}</div>
+              <div style={{ fontSize:13, opacity:0.8, marginTop:4 }}>Today: ₱{earnings.today || 0}</div>
             </div>
             <div style={{ background:"white", borderRadius:16, overflow:"hidden", border:"1px solid #EAECF0" }}>
               {packages.map((pkg,i) => {
-                const count = vouchers.filter(v => v.package===pkg.name && v.is_used).length;
+                const pkgData = earnings.by_package?.find(p => p.package === pkg.name);
+                const count = pkgData?.count || 0;
+                const earned = pkgData?.earned || 0;
                 return (
                   <div key={pkg.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 18px", borderBottom: i<packages.length-1 ? "1px solid #F0F0F0" : "none" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -356,7 +372,7 @@ function AdminPanel({ onLogout }) {
                         <div style={{ fontSize:12, color:"#AAA" }}>₱{pkg.price} × {count} sold</div>
                       </div>
                     </div>
-                    <div style={{ fontWeight:900, fontSize:16, color:pkg.color }}>₱{count * pkg.price}</div>
+                    <div style={{ fontWeight:900, fontSize:16, color:pkg.color }}>₱{earned}</div>
                   </div>
                 );
               })}
@@ -375,7 +391,7 @@ function AdminPanel({ onLogout }) {
             <div style={{ background:"#F7F8FC", borderRadius:16, padding:"20px", marginBottom:20, border:"2px dashed #DDD" }}>
               <div style={{ fontSize:12, fontWeight:700, color:"#AAA", marginBottom:8, letterSpacing:1 }}>SMARTPISOWIFI RECEIPT</div>
               <div style={{ fontFamily:"'Space Mono',monospace", fontSize:32, fontWeight:700, color:generatedCode.pkg.color, letterSpacing:2, marginBottom:12 }}>{generatedCode.code}</div>
-              {[["Package", generatedCode.package], ["Duration", generatedCode.pkg.label], ["Amount Paid", `₱${generatedCode.price}`], ["Date", generatedCode.created_at]].map(([k,v]) => (
+              {[["Package", generatedCode.package], ["Duration", generatedCode.pkg.label], ["Amount Paid", `₱${generatedCode.price}`], ["Date", new Date(generatedCode.created_at).toLocaleString("en-PH")]].map(([k,v]) => (
                 <div key={k} style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:4 }}>
                   <span style={{ color:"#888" }}>{k}</span>
                   <span style={{ fontWeight: k==="Amount Paid" ? 900 : 700, color: k==="Amount Paid" ? "#FF9F43" : "#2D3436" }}>{v}</span>
@@ -399,7 +415,7 @@ function AdminPanel({ onLogout }) {
             <div style={{ fontWeight:900, fontSize:18, color:"#2D3436", marginBottom:8 }}>Logout?</div>
             <div style={{ color:"#AAA", fontSize:13, marginBottom:24 }}>You will be returned to the login page.</div>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={onLogout} style={{ flex:1, padding:"12px", borderRadius:12, border:"none", cursor:"pointer", background:"linear-gradient(135deg,#FF6B6B,#FF4757)", color:"white", fontFamily:"'Nunito',sans-serif", fontWeight:800, fontSize:14 }}>Yes, Logout</button>
+              <button onClick={() => { localStorage.removeItem("admin_token"); onLogout(); }} style={{ flex:1, padding:"12px", borderRadius:12, border:"none", cursor:"pointer", background:"linear-gradient(135deg,#FF6B6B,#FF4757)", color:"white", fontFamily:"'Nunito',sans-serif", fontWeight:800, fontSize:14 }}>Yes, Logout</button>
               <button onClick={() => setShowLogoutConfirm(false)} style={{ flex:1, padding:"12px", borderRadius:12, border:"2px solid #EAECF0", cursor:"pointer", background:"white", color:"#666", fontFamily:"'Nunito',sans-serif", fontWeight:800, fontSize:14 }}>Cancel</button>
             </div>
           </div>
@@ -415,7 +431,7 @@ function AdminPanel({ onLogout }) {
           <div style={{ fontSize:13, marginBottom:4 }}>Package: {generatedCode.package}</div>
           <div style={{ fontSize:13, marginBottom:4 }}>Duration: {generatedCode.pkg?.label}</div>
           <div style={{ fontSize:13, marginBottom:4 }}>Amount: ₱{generatedCode.price}</div>
-          <div style={{ fontSize:13, marginBottom:20 }}>Date: {generatedCode.created_at}</div>
+          <div style={{ fontSize:13, marginBottom:20 }}>Date: {new Date(generatedCode.created_at).toLocaleString("en-PH")}</div>
           <div style={{ fontSize:11 }}>Connect to WiFi & enter your code.</div>
           <div style={{ fontSize:11 }}>Thank you!</div>
         </div>
@@ -425,12 +441,12 @@ function AdminPanel({ onLogout }) {
 }
 
 // ─────────────────────────────────────────────
-// ROOT — Controls which page to show
+// ROOT
 // ─────────────────────────────────────────────
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [token, setToken] = useState(() => localStorage.getItem("admin_token") || null);
 
-  return isLoggedIn
-    ? <AdminPanel onLogout={() => setIsLoggedIn(false)} />
-    : <LoginPage onLogin={() => setIsLoggedIn(true)} />;
+  return token
+    ? <AdminPanel token={token} onLogout={() => setToken(null)} />
+    : <LoginPage onLogin={(t) => setToken(t)} />;
 }
